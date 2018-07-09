@@ -1,4 +1,4 @@
-cmake_minimum_required (VERSION 3.11.4)
+cmake_minimum_required (VERSION 3.11)
 project (cppbor)
 
 set(CMAKE_CXX_COMPILER /Library/Developer/CommandLineTools/usr/bin/clang++)
@@ -8,3 +8,4 @@ link_directories(/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib)
 set(CMAKE_EXE_LINKER_FLAGS -lc++)
 
 add_executable(cppbor cppbor/main cppbor/cppbor)
+set(CMAKE_BUILD_TYPE Debug)
