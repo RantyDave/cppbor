@@ -55,6 +55,12 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, int*
             return cbor_variant { rtn };
         }
 
+        case 6: {  // tags (are ignored)
+            read_integer_header(in, h, offset);
+            // but we return the actual object that the tag referred to
+            return construct_from(in, offset);
+        }
+
         case 7: {  // floats and none
             const cbor_byte* first_data_byte=in.data()+*offset+1;
             if (h->additional==26) {  // single precision
