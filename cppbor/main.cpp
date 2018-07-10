@@ -18,7 +18,7 @@ int main(int argc, const char * argv[]) {
                         s} };
     cbor_variant m { cbor_map {
                         {string("Aye"), i},
-                        {string("Excs"), f},
+                        {string("Eff"), f},
                         {string("Eh"), a} }};
 
     cout << get<int>(i) << " " << get<float>(f) << " " << get<string>(s) << endl;
@@ -34,7 +34,8 @@ int main(int argc, const char * argv[]) {
 
     vector<cbor_byte> scratchpad;
 
-    for (int j : {0, 1, 23, 24, 25, 254, 255, 256, 257, 65534, 65535, 65536, 65537, 12345678, -1, -23, -24, -25, -254, -255, -256, -257, -65534, -65535, -65536, -65537, -12345678}) {
+    for (int j : {0, 1, 23, 24, 25, 254, 255, 256, 257, 65534, 65535, 65536, 65537, 12345678,
+         -1, -23, -24, -25, -254, -255, -256, -257, -65534, -65535, -65536, -65537, -12345678}) {
         cbor_variant i { j };
         scratchpad.clear();
         i.encode_onto(&scratchpad);
@@ -60,9 +61,10 @@ int main(int argc, const char * argv[]) {
     auto d_s=cbor_variant::construct_from(scratchpad);
     cout << get<string>(d_s) << endl;
 
-//    scratchpad.clear();
-//    n.encode_onto(&scratchpad);
-//    auto d_n=cbor_variant::construct_from(scratchpad);
+    scratchpad.clear();
+    n.encode_onto(&scratchpad);
+    auto d_n=cbor_variant::construct_from(scratchpad);
+    get<monostate>(d_n);  // monostate doesn't convert to const void* so we can't cout it.
 
     scratchpad.clear();
     a.encode_onto(&scratchpad);
@@ -71,7 +73,19 @@ int main(int argc, const char * argv[]) {
          << get<float>(get<cbor_array>(d_a)[1]) << ' '
          << get<string>(get<cbor_array>(d_a)[2]) << endl;
 
+    scratchpad.clear();
+    m.encode_onto(&scratchpad);
+    auto d_m=cbor_variant::construct_from(scratchpad);
+    auto the_map=get<cbor_map>(d_m);
+    auto the_array=get<cbor_array>(the_map["Eh"]);
+    cout << get<float>(the_map["Eff"]) << ' '
+         << get<int>(the_map["Aye"]) << ' '
+         << get<string>(the_array[2]) << endl;
+
     // python compat
+    // if you're getting unexpected crashes in here, make sure you've
+    // * run sources.py
+    // * in the same directory as you are running the exe in
     const int buffer_length=32;
     vector<cbor_byte> working(buffer_length);
 
@@ -103,6 +117,7 @@ int main(int argc, const char * argv[]) {
     ifstream none_enc("none", ios::in|ios::binary);
     none_enc.read((char*)(void*)working.data(), buffer_length);
     auto none_decoded=cbor_variant::construct_from(working);
+    get<monostate>(none_decoded);
 
     ifstream array_enc("array", ios::in|ios::binary);
     array_enc.read((char*)(void*)working.data(), buffer_length);

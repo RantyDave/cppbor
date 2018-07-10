@@ -16,7 +16,7 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, int*
     if (in.size()<=*offset) throw length_error("No header byte while decoding cbor");
 
     // header object
-    const header* h=(const header*)(const void*)in.data()+*offset;
+    const header* h=(const header*)(const void*)&in[*offset];
 
     // integers
     switch (h->major) {
@@ -34,9 +34,24 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, int*
         }
 
         case 4: {  // arrays
-            vector<cbor_variant> rtn;
+            cbor_array rtn;
             for (int pending_items=read_integer_header(in, h, offset); pending_items>0; pending_items--)
                 rtn.push_back(construct_from(in, offset));
+            return cbor_variant { rtn };
+        }
+
+        case 5: {  // maps
+            cbor_map rtn;
+            for (int pending_items=read_integer_header(in, h, offset); pending_items>0; pending_items--) {
+                // get the key
+                h=(const header*)(const void*)&in[*offset];
+                if (h->major!=3) throw runtime_error("Asked to process a map entry whose key is not a string");
+                int key_length=read_integer_header(in, h, offset);
+                string key { string(&in[*offset], &in[*offset+key_length]) };
+                *offset+=key_length;
+                // get the variant
+                rtn[key]=construct_from(in, offset);
+            }
             return cbor_variant { rtn };
         }
 
@@ -104,10 +119,24 @@ void cbor_variant::encode_onto(std::vector<cbor_byte>* in) const
             return;
         }
 
-        case 5: {  // array
-            vector<cbor_variant> val { get<5>(*this) };
+        case 5: {  // variant array
+            const cbor_array val { get<5>(*this) };
             append_integer_header(4, (int)val.size(), in);
-            for (const cbor_variant& v : val) v.encode_onto(in);
+            for (auto& v : val) v.encode_onto(in);
+            return;
+        }
+
+        case 6: {  // string -> variant map
+            const cbor_map val { get<6>(*this) };
+            append_integer_header(5, (int)val.size(), in);
+            for (auto& v : val) {
+                // write the string key
+                append_integer_header(3, v.first.size(), in);
+                in->insert(in->end(), v.first.begin(), v.first.end());
+                // and the value
+                v.second.encode_onto(in);
+            }
+            return;
         }
 
         default: { // none (case 3)

@@ -3,15 +3,15 @@
 #include <variant>
 #include <string>
 #include <vector>
-#include <map>
+#include <unordered_map>
 
 struct cbor_variant;
 typedef unsigned char cbor_byte;
 typedef std::vector<cbor_variant> cbor_array;
-typedef std::map<std::string, cbor_variant> cbor_map;
+typedef std::unordered_map<std::string, cbor_variant> cbor_map;
 
 // Not supported: 64 bit ints
-struct cbor_variant : std::variant<int, float, std::string, std::monostate, std::vector<cbor_byte>, std::vector<cbor_variant>, std::map<std::string, cbor_variant>>
+struct cbor_variant : std::variant<int, float, std::string, std::monostate, std::vector<cbor_byte>, cbor_array, cbor_map>
 {
     // construct a variant from a vector of bytes
     static cbor_variant construct_from(const std::vector<cbor_byte>& in);
