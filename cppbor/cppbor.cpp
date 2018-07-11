@@ -6,17 +6,17 @@
 using namespace std;
 cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in)
 {
-    int dummy_offset=0;
+    unsigned int dummy_offset=0;
     return construct_from(in, &dummy_offset);
 }
 
-cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, int* offset)
+cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, unsigned int* offset)
 {
     // nothing to read?
     if (in.size()<=*offset) throw length_error("No header byte while decoding cbor");
 
     // header object
-    const header* h=(const header*)(const void*)&in[*offset];
+    const header* h=reinterpret_cast<const header*>(&in[*offset]);
 
     // integers
     switch (h->major) {
@@ -26,11 +26,12 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, int*
         case 2: // bytes and strings
         case 3: {
             int length=read_integer_header(in, h, offset);
-            int offset_at_begin=*offset;
-            *offset+=length;
+            if (length<0) throw runtime_error("A negative length was given for a byte array or string");
+            unsigned int offset_at_begin=*offset;
+            *offset+=static_cast<unsigned int>(length);
             if (in.size()<*offset) throw length_error("Insufficient data bytes while decoding cbor");
-            if (h->major==2) return cbor_variant { vector<cbor_byte>(&in[offset_at_begin], &in[offset_at_begin+length]) };
-            else return cbor_variant { string(&in[offset_at_begin], &in[offset_at_begin+length]) };
+            if (h->major==2) return cbor_variant { vector<cbor_byte>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
+            else return cbor_variant { string(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
         }
 
         case 4: {  // arrays
@@ -44,11 +45,12 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, int*
             cbor_map rtn;
             for (int pending_items=read_integer_header(in, h, offset); pending_items>0; pending_items--) {
                 // get the key
-                h=(const header*)(const void*)&in[*offset];
+                h=reinterpret_cast<const header*>(&in[*offset]);
                 if (h->major!=3) throw runtime_error("Asked to process a map entry whose key is not a string");
                 int key_length=read_integer_header(in, h, offset);
-                string key { string(&in[*offset], &in[*offset+key_length]) };
-                *offset+=key_length;
+                if (key_length<0) throw runtime_error("Length of a (map) key was expressed as a negative number");
+                string key { string(&in[*offset], &in[*offset+static_cast<unsigned int>(key_length)]) };
+                *offset+=static_cast<unsigned int>(key_length);
                 // get the variant
                 rtn[key]=construct_from(in, offset);
             }
@@ -66,14 +68,14 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, int*
             if (h->additional==26) {  // single precision
                 *offset+=5;
                 float rtn;
-                float_to_big_endian(first_data_byte, (cbor_byte*)(void*)&rtn, 4);
+                float_to_big_endian(first_data_byte, reinterpret_cast<cbor_byte*>(&rtn), 4);
                 return cbor_variant { rtn };
             }
             if (h->additional==27) {  // double precision, gets cast down to single
                 *offset+=9;
                 double rtn;
-                float_to_big_endian(first_data_byte, (cbor_byte*)(void*)&rtn, 8);
-                return cbor_variant { (float)rtn };
+                float_to_big_endian(first_data_byte, reinterpret_cast<cbor_byte*>(&rtn), 8);
+                return cbor_variant { static_cast<float>(rtn) };
             }
             if (h->additional==22) {
                 *offset+=1;
@@ -92,52 +94,52 @@ void cbor_variant::encode_onto(std::vector<cbor_byte>* in) const
 {
     // https://tools.ietf.org/html/rfc7049#section-2.1
     switch (index()) {
-        case 0: { // integers
+        case integer: { // integers
             int val=get<0>(*this);
-            if (val>=0) append_integer_header(0, val, in);
-            else append_integer_header(1, (-val)-1, in);
+            if (val>=0) append_integer_header(0, static_cast<unsigned int>(val), in);
+            else append_integer_header(1, static_cast<unsigned int>((-val)-1), in);
             return;
         }
 
         // https://tools.ietf.org/html/rfc7049#section-2.3
-        case 1: { // floats
+        case floating_point: { // floats
             header h(7, 26);
             h.append_onto(in);
             float val=get<1>(*this);
             float big_endian;
-            cbor_byte* p_big_endian=(cbor_byte*)(void*)&big_endian;
-            float_to_big_endian((cbor_byte*)(void*)&val, p_big_endian, sizeof(float));
+            cbor_byte* p_big_endian=reinterpret_cast<cbor_byte*>(&big_endian);
+            float_to_big_endian(reinterpret_cast<cbor_byte*>(&val), p_big_endian, sizeof(float));
             in->insert(in->end(), p_big_endian, p_big_endian+sizeof(float));
             return;
         }
 
-        case 4: { // bytes
+        case bytes: { // bytes
             const vector<cbor_byte> val=get<4>(*this);
-            append_integer_header(2, (int)val.size(), in);
+            append_integer_header(2, static_cast<unsigned int>(val.size()), in);
             in->insert(in->end(), val.begin(), val.end());
             return;
         }
 
-        case 2: {  // string
+        case unicode_string: {  // string
             const string val=get<2>(*this);
-            append_integer_header(3, (int)val.size(), in);
+            append_integer_header(3, static_cast<unsigned int>(val.size()), in);
             in->insert(in->end(), val.begin(), val.end());
             return;
         }
 
-        case 5: {  // variant array
+        case array: {  // variant array
             const cbor_array val { get<5>(*this) };
-            append_integer_header(4, (int)val.size(), in);
+            append_integer_header(4, static_cast<unsigned int>(val.size()), in);
             for (auto& v : val) v.encode_onto(in);
             return;
         }
 
-        case 6: {  // string -> variant map
+        case map: {  // string -> variant map
             const cbor_map val { get<6>(*this) };
-            append_integer_header(5, (int)val.size(), in);
+            append_integer_header(5, static_cast<unsigned int>(val.size()), in);
             for (auto& v : val) {
                 // write the string key
-                append_integer_header(3, v.first.size(), in);
+                append_integer_header(3, static_cast<unsigned int>(v.first.size()), in);
                 in->insert(in->end(), v.first.begin(), v.first.end());
                 // and the value
                 v.second.encode_onto(in);
@@ -145,13 +147,13 @@ void cbor_variant::encode_onto(std::vector<cbor_byte>* in) const
             return;
         }
 
-        default: { // none (case 3)
+        default: { // none (monostate)
             in->push_back(0xf6);
         }
     }
 }
 
-int cbor_variant::integer_length(int additional)
+unsigned int cbor_variant::integer_length(int additional)
 {
     if (additional<24) return 1;   // just the header
     if (additional==24) return 2;  // header plus one byte
@@ -159,26 +161,28 @@ int cbor_variant::integer_length(int additional)
     return 5;  // header plus an int
 }
 
-void cbor_variant::append_integer_header(int major, int val, std::vector<cbor_byte>* in)
+void cbor_variant::append_integer_header(unsigned int major, unsigned int val, std::vector<cbor_byte>* in)
 {
     if (val<24) { header(major, val).append_onto(in); return; }
-    if (val<256) { header_byte(major, 24, val).append_onto(in); return; }
+    if (val<256) { header_byte(major, 24, static_cast<cbor_byte>(val)).append_onto(in); return; }
     if (val<65536) { header_short(major, 25, htons(val)).append_onto(in); return; }
     header_int(major, 26, htonl(val)).append_onto(in);
 }
 
-int cbor_variant::read_integer_header(const std::vector<cbor_byte>& in, const header* h, int* offset)
+int cbor_variant::read_integer_header(const std::vector<cbor_byte>& in, const header* h, unsigned int* offset)
 {
-    int first_offset=*offset;
+    unsigned int first_offset=*offset;
     *offset+=integer_length(h->additional);
     if (h->additional<24) return h->additional;
     if (in.size()<*offset) throw length_error("Insufficient additional size byte(s) while decoding cbor");
     const cbor_byte* p_data=&in[first_offset+1];
     switch (h->additional) {
-        case 24: return (int)*p_data;
-        case 25: return (int)ntohs(*(unsigned short*)(void*)p_data);
-        case 26: return (int)ntohl(*(unsigned int*)(void*)p_data);
-        default: throw range_error("Tried to construct an integer greater than 32 bits");
+        case 24: return static_cast<int>(*p_data);
+        case 25: return static_cast<int>(ntohs(*reinterpret_cast<const unsigned short*>(p_data)));
+        case 26: return static_cast<int>(ntohl(*reinterpret_cast<const unsigned int*>(p_data)));
+        case 27: throw range_error("This implementation does not support 64 bit integers");
+        case 31: throw runtime_error("This implementation does not support indefinite length types");
+        default: throw runtime_error("Don't know how to handle additional data in header");
     }
 }
 
