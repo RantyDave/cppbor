@@ -1,3 +1,4 @@
 
 *.user
 cppbor/.gitattributes
+*.autosave

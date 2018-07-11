@@ -1,134 +1,148 @@
 // https://tools.ietf.org/html/rfc7049
-// https://stackoverflow.com/questions/23071024/how-do-i-make-xcode-use-an-alternative-version-of-clang
+#include "main.h"
 #include <iostream>
 #include <fstream>
-#include "cppbor.hpp"
+#include <cppunit/CompilerOutputter.h>
+#include <cppunit/extensions/TestFactoryRegistry.h>
+#include <cppunit/ui/text/TestRunner.h>
+#include <cppunit/TestAssert.h>
+
 using namespace std;
 
-int main(int argc, const char * argv[]) {
+CPPUNIT_TEST_SUITE_REGISTRATION( CborTest );
 
-    cbor_variant i { 1 };
-    cbor_variant f { (float)1.1 };
-    cbor_variant s { string("Hello World!") };
-    cbor_variant n { std::monostate() };  // 'None' in Python
-    cbor_variant b { vector<cbor_byte> { 'b', 'y', 't', 'e', 's' } };
-    cbor_variant a { cbor_array {
-                        i,
-                        f,
-                        s} };
-    cbor_variant m { cbor_map {
-                        {string("Aye"), i},
-                        {string("Eff"), f},
-                        {string("Eh"), a} }};
+void CborTest::testGet()
+{
+    CPPUNIT_ASSERT_EQUAL(get<int>(this->i), 1);
+    CPPUNIT_ASSERT_EQUAL(get<float>(this->f), static_cast<float>(1.1));
+    CPPUNIT_ASSERT_EQUAL(get<string>(this->s), string("Hello World!"));
+    CPPUNIT_ASSERT_EQUAL(get<vector<cbor_byte>>(this->b)[0], static_cast<cbor_byte>('b'));
+    CPPUNIT_ASSERT_EQUAL(get<cbor_array>(this->a)[0], cbor_variant { 1 });
+    CPPUNIT_ASSERT_EQUAL(get<cbor_map>(this->m)["Aye"], cbor_variant { 1 });
+}
 
-    cout << get<int>(i) << " " << get<float>(f) << " " << get<string>(s) << endl;
-    cout << get<string>(get<cbor_array>(a)[2]) << endl;
-    cout << get<int>(get<cbor_map>(m)[string("Aye")]) << endl;
-    cout << get<float>(get<cbor_array>(get<cbor_map>(m)[string("Eh")])[1]) << endl;
+void CborTest::testNested()
+{
+    CPPUNIT_ASSERT_EQUAL(get<float>(get<cbor_array>(get<cbor_map>(this->m)["Eh"])[1]), static_cast<float>(1.1));
+}
 
-    try {
-        get<int>(f);
-    } catch(const exception& e) {
-        cout << e.what() << endl;
-    }
+void CborTest::testType()
+{
+    CPPUNIT_ASSERT_EQUAL(this->i.index(), static_cast<unsigned long>(cbor_variant::integer));
+    CPPUNIT_ASSERT_EQUAL(this->f.index(), static_cast<unsigned long>(cbor_variant::floating_point));
+    CPPUNIT_ASSERT_EQUAL(this->s.index(), static_cast<unsigned long>(cbor_variant::unicode_string));
+    CPPUNIT_ASSERT_EQUAL(this->n.index(), static_cast<unsigned long>(cbor_variant::none));
+    CPPUNIT_ASSERT_EQUAL(this->b.index(), static_cast<unsigned long>(cbor_variant::bytes));
+    CPPUNIT_ASSERT_EQUAL(this->a.index(), static_cast<unsigned long>(cbor_variant::array));
+    CPPUNIT_ASSERT_EQUAL(this->m.index(), static_cast<unsigned long>(cbor_variant::map));
+}
 
-    vector<cbor_byte> scratchpad;
+void CborTest::catchException() {
+    CPPUNIT_ASSERT_THROW(get<int>(this->f), std::bad_variant_access);
+}
 
+void CborTest::roundTrip()
+{
+    // Integers
     for (int j : {0, 1, 23, 24, 25, 254, 255, 256, 257, 65534, 65535, 65536, 65537, 12345678,
          -1, -23, -24, -25, -254, -255, -256, -257, -65534, -65535, -65536, -65537, -12345678}) {
         cbor_variant i { j };
-        scratchpad.clear();
-        i.encode_onto(&scratchpad);
-        auto d_i=cbor_variant::construct_from(scratchpad);
-        cout << get<int>(d_i) << endl;
+        this->scratchpad.clear();
+        i.encode_onto(&this->scratchpad);
+        auto d_i=cbor_variant::construct_from(this->scratchpad);
+        CPPUNIT_ASSERT_EQUAL(get<int>(d_i), j);
     }
 
-    scratchpad.clear();
-    f.encode_onto(&scratchpad);
-    auto d_f=cbor_variant::construct_from(scratchpad);
-    cout << get<float>(d_f) << endl;
+    // Floats
+    this->scratchpad.clear();
+    this->f.encode_onto(&this->scratchpad);
+    auto d_f=cbor_variant::construct_from(this->scratchpad);
+    CPPUNIT_ASSERT_EQUAL(get<float>(this->f), get<float>(d_f));
 
-    scratchpad.clear();
-    b.encode_onto(&scratchpad);
-    auto d_b=cbor_variant::construct_from(scratchpad);
-    for (cbor_byte b : get<vector<cbor_byte>>(d_b)) {
-        cout << b;
+    // Bytes
+    this->scratchpad.clear();
+    this->b.encode_onto(&this->scratchpad);
+    auto d_b=cbor_variant::construct_from(this->scratchpad);
+    for (unsigned int i=0; i < get<vector<cbor_byte>>(this->b).size(); i++) {
+        CPPUNIT_ASSERT_EQUAL(this->b[i], d_b[i]);
     }
-    cout << endl;
 
-    scratchpad.clear();
-    s.encode_onto(&scratchpad);
-    auto d_s=cbor_variant::construct_from(scratchpad);
-    cout << get<string>(d_s) << endl;
+    // Strings
+    this->scratchpad.clear();
+    this->s.encode_onto(&this->scratchpad);
+    auto d_s=cbor_variant::construct_from(this->scratchpad);
+    CPPUNIT_ASSERT_EQUAL(get<string>(this->s), get<string>(d_s));
 
-    scratchpad.clear();
-    n.encode_onto(&scratchpad);
-    auto d_n=cbor_variant::construct_from(scratchpad);
-    get<monostate>(d_n);  // monostate doesn't convert to const void* so we can't cout it.
+    // Arrays
+    this->scratchpad.clear();
+    this->a.encode_onto(&this->scratchpad);
+    auto d_a=cbor_variant::construct_from(this->scratchpad);
+    CPPUNIT_ASSERT_EQUAL(get<int>(get<cbor_array>(this->a)[0]), get<int>(get<cbor_array>(d_a)[0]));
+    CPPUNIT_ASSERT_EQUAL(get<float>(get<cbor_array>(this->a)[1]), get<float>(get<cbor_array>(d_a)[1]));
+    CPPUNIT_ASSERT_EQUAL(get<string>(get<cbor_array>(this->a)[2]), get<string>(get<cbor_array>(d_a)[2]));
 
-    scratchpad.clear();
-    a.encode_onto(&scratchpad);
-    auto d_a=cbor_variant::construct_from(scratchpad);
-    cout << get<int>(get<cbor_array>(d_a)[0]) << ' '
-         << get<float>(get<cbor_array>(d_a)[1]) << ' '
-         << get<string>(get<cbor_array>(d_a)[2]) << endl;
-
-    scratchpad.clear();
-    m.encode_onto(&scratchpad);
-    auto d_m=cbor_variant::construct_from(scratchpad);
+    // Maps
+    this->scratchpad.clear();
+    this->m.encode_onto(&this->scratchpad);
+    auto d_m=cbor_variant::construct_from(this->scratchpad);
     auto the_map=get<cbor_map>(d_m);
+    CPPUNIT_ASSERT_EQUAL(get<float>(the_map["Eff"]), get<float>(get<cbor_map>(this->m)["Eff"]));
+    CPPUNIT_ASSERT_EQUAL(get<int>(the_map["Aye"]), get<int>(get<cbor_map>(this->m)["Aye"]));
     auto the_array=get<cbor_array>(the_map["Eh"]);
-    cout << get<float>(the_map["Eff"]) << ' '
-         << get<int>(the_map["Aye"]) << ' '
-         << get<string>(the_array[2]) << endl;
+    CPPUNIT_ASSERT_EQUAL(get<string>(the_array[2]), get<string>(get<cbor_array>(get<cbor_map>(this->m)["Eh"])[2]));
+}
 
-    // python compat
-    // if you're getting unexpected crashes in here, make sure you've
-    // * run sources.py
-    // * in the same directory as you are running the exe in
+void CborTest::pythonCompat()
+{
     const int buffer_length=32;
     vector<cbor_byte> working(buffer_length);
 
+    // Integers
     ifstream int_enc("int", ios::in|ios::binary);
-    int_enc.read((char*)(void*)working.data(), buffer_length);
+    int_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto int_decoded=cbor_variant::construct_from(working);
-    cout << get<int>(int_decoded) << endl;
+    CPPUNIT_ASSERT_EQUAL(get<int>(int_decoded), -12345678);
 
-    double test_dble=1.1;
-
+    // Floats
     ifstream float_enc("float", ios::in|ios::binary);
-    float_enc.read((char*)(void*)working.data(), buffer_length);
+    float_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto float_decoded=cbor_variant::construct_from(working);
-    cout << get<float>(float_decoded) << endl;
+    CPPUNIT_ASSERT_EQUAL(get<float>(float_decoded), static_cast<float>(1.1));
 
+    // Strings
     ifstream string_enc("string", ios::in|ios::binary);
-    string_enc.read((char*)(void*)working.data(), buffer_length);
+    string_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto string_decoded=cbor_variant::construct_from(working);
-    cout << get<string>(string_decoded) << endl;
+    CPPUNIT_ASSERT_EQUAL(get<string>(string_decoded), string("smeg"));
 
+    // Bytes
     ifstream bytes_enc("bytes", ios::in|ios::binary);
-    bytes_enc.read((char*)(void*)working.data(), buffer_length);
+    bytes_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto bytes_decoded=cbor_variant::construct_from(working);
-    for (cbor_byte b : get<vector<cbor_byte>>(bytes_decoded)) {
-        cout << b;
+    vector<cbor_byte> ideal { 'b', 'y', 't', 'e', 's' };
+    for (unsigned int i=0; i < get<vector<cbor_byte>>(this->b).size(); i++) {
+        CPPUNIT_ASSERT_EQUAL(get<vector<cbor_byte>>(bytes_decoded)[i], ideal[i]);
     }
-    cout << endl;
 
+    // None
     ifstream none_enc("none", ios::in|ios::binary);
-    none_enc.read((char*)(void*)working.data(), buffer_length);
+    none_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto none_decoded=cbor_variant::construct_from(working);
     get<monostate>(none_decoded);
 
     ifstream array_enc("array", ios::in|ios::binary);
-    array_enc.read((char*)(void*)working.data(), buffer_length);
+    array_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto array_decoded=cbor_variant::construct_from(working);
-    cbor_variant zero=get<cbor_array>(array_decoded)[0];
-    cbor_variant one=get<cbor_array>(array_decoded)[1];
-    cbor_variant two=get<cbor_array>(array_decoded)[2];
+    CPPUNIT_ASSERT_EQUAL(get<int>(get<cbor_array>(array_decoded)[0]), 8);
+    CPPUNIT_ASSERT_EQUAL(get<float>(get<cbor_array>(array_decoded)[1]), static_cast<float>(1.1));
+    CPPUNIT_ASSERT_EQUAL(get<string>(get<cbor_array>(array_decoded)[2]), string("pie"));
+}
 
-    cout << get<int>(zero) << endl;
-    cout << get<float>(one) << endl;
-    cout << get<string>(two) << endl;
-
-    return 0;
+int main(int argc, char* argv[])
+{
+    CppUnit::Test* suite = CppUnit::TestFactoryRegistry::getRegistry().makeTest();
+    CppUnit::TextUi::TestRunner runner;
+    runner.addTest( suite );
+    runner.setOutputter( new CppUnit::CompilerOutputter( &runner.result(), std::cerr ) );
+    return runner.run() ? 0 : 1;
 }
