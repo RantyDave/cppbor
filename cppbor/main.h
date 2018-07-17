@@ -42,7 +42,7 @@ private:
     cbor_variant f { static_cast<float>(1.1) };
     cbor_variant s { std::string("Hello World!") };
     cbor_variant n { std::monostate() };  // 'None' in Python
-    cbor_variant b { std::vector<cbor_byte> { 'b', 'y', 't', 'e', 's' } };
+    cbor_variant b { std::vector<uint8_t> { 'b', 'y', 't', 'e', 's' } };
     cbor_variant a { cbor_array {
                         i,
                         f,
@@ -52,7 +52,7 @@ private:
                         {std::string("Eff"), f},
                         {std::string("Eh"), a}}};
 
-    std::vector<cbor_byte> scratchpad;
+    std::vector<uint8_t> scratchpad;
 };
 
 #endif // MAIN_H

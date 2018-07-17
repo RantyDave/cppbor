@@ -17,13 +17,13 @@
 #include <arpa/inet.h>
 
 using namespace std;
-cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in)
+cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in)
 {
     unsigned int dummy_offset=0;
     return construct_from(in, &dummy_offset);
 }
 
-cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, unsigned int* offset)
+cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in, unsigned int* offset)
 {
     // nothing to read?
     if (in.size()<=*offset) throw length_error("No header byte while decoding cbor");
@@ -43,7 +43,7 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, unsi
             unsigned int offset_at_begin=*offset;
             *offset+=static_cast<unsigned int>(length);
             if (in.size()<*offset) throw length_error("Insufficient data bytes while decoding cbor");
-            if (h->major==2) return cbor_variant { vector<cbor_byte>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
+            if (h->major==2) return cbor_variant { vector<uint8_t>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
             else return cbor_variant { string(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
         }
 
@@ -77,17 +77,17 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, unsi
         }
 
         case 7: {  // floats and none
-            const cbor_byte* first_data_byte=in.data()+*offset+1;
+            const uint8_t* first_data_byte=in.data()+*offset+1;
             if (h->additional==26) {  // single precision
                 *offset+=5;
                 float rtn;
-                float_to_big_endian(first_data_byte, reinterpret_cast<cbor_byte*>(&rtn), 4);
+                float_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn), 4);
                 return cbor_variant { rtn };
             }
             if (h->additional==27) {  // double precision, gets cast down to single
                 *offset+=9;
                 double rtn;
-                float_to_big_endian(first_data_byte, reinterpret_cast<cbor_byte*>(&rtn), 8);
+                float_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn), 8);
                 return cbor_variant { static_cast<float>(rtn) };
             }
             if (h->additional==22) {
@@ -103,7 +103,7 @@ cbor_variant cbor_variant::construct_from(const std::vector<cbor_byte>& in, unsi
 };
 
 // encode just this one variant
-void cbor_variant::encode_onto(std::vector<cbor_byte>* in) const
+void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
 {
     // https://tools.ietf.org/html/rfc7049#section-2.1
     switch (index()) {
@@ -120,14 +120,14 @@ void cbor_variant::encode_onto(std::vector<cbor_byte>* in) const
             h.append_onto(in);
             float val=get<1>(*this);
             float big_endian;
-            cbor_byte* p_big_endian=reinterpret_cast<cbor_byte*>(&big_endian);
-            float_to_big_endian(reinterpret_cast<cbor_byte*>(&val), p_big_endian, sizeof(float));
+            uint8_t* p_big_endian=reinterpret_cast<uint8_t*>(&big_endian);
+            float_to_big_endian(reinterpret_cast<uint8_t*>(&val), p_big_endian, sizeof(float));
             in->insert(in->end(), p_big_endian, p_big_endian+sizeof(float));
             return;
         }
 
         case bytes: { // bytes
-            const vector<cbor_byte> val=get<4>(*this);
+            const vector<uint8_t> val=get<4>(*this);
             append_integer_header(2, static_cast<unsigned int>(val.size()), in);
             in->insert(in->end(), val.begin(), val.end());
             return;
@@ -174,21 +174,21 @@ unsigned int cbor_variant::integer_length(int additional)
     return 5;  // header plus an int
 }
 
-void cbor_variant::append_integer_header(unsigned int major, unsigned int val, std::vector<cbor_byte>* in)
+void cbor_variant::append_integer_header(unsigned int major, unsigned int val, std::vector<uint8_t>* in)
 {
     if (val<24) { header(major, val).append_onto(in); return; }
-    if (val<256) { header_byte(major, 24, static_cast<cbor_byte>(val)).append_onto(in); return; }
+    if (val<256) { header_byte(major, 24, static_cast<uint8_t>(val)).append_onto(in); return; }
     if (val<65536) { header_short(major, 25, htons(val)).append_onto(in); return; }
     header_int(major, 26, htonl(val)).append_onto(in);
 }
 
-int cbor_variant::read_integer_header(const std::vector<cbor_byte>& in, const header* h, unsigned int* offset)
+int cbor_variant::read_integer_header(const std::vector<uint8_t>& in, const header* h, unsigned int* offset)
 {
     unsigned int first_offset=*offset;
     *offset+=integer_length(h->additional);
     if (h->additional<24) return h->additional;
     if (in.size()<*offset) throw length_error("Insufficient additional size byte(s) while decoding cbor");
-    const cbor_byte* p_data=&in[first_offset+1];
+    const uint8_t* p_data=&in[first_offset+1];
     switch (h->additional) {
         case 24: return static_cast<int>(*p_data);
         case 25: return static_cast<int>(ntohs(*reinterpret_cast<const unsigned short*>(p_data)));
@@ -199,7 +199,7 @@ int cbor_variant::read_integer_header(const std::vector<cbor_byte>& in, const he
     }
 }
 
-void cbor_variant::float_to_big_endian(const cbor_byte* p_src, cbor_byte* p_dest, unsigned int bytes)
+void cbor_variant::float_to_big_endian(const uint8_t* p_src, uint8_t* p_dest, unsigned int bytes)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
     p_dest+=bytes-1;
