@@ -17,3 +17,9 @@ with open("float", 'wb') as f:
 
 with open("array", 'wb') as f:
     f.write(cbor.dumps([8, 1.1, "pie"]))
+
+with open("map", 'wb') as m:
+    m.write(cbor.dumps({"one": 1, "two": "deux"}))
+
+with open("array-map", 'wb') as m:
+    m.write(cbor.dumps([{"one": 1, "two": "deux"}, {"three": 3, "four": "quatre"}]))

@@ -28,6 +28,7 @@ public:
     CPPUNIT_TEST( catchException );
     CPPUNIT_TEST( roundTrip );
     CPPUNIT_TEST( pythonCompat );
+    CPPUNIT_TEST( describe );
     CPPUNIT_TEST_SUITE_END();
 
     void testGet();
@@ -36,6 +37,7 @@ public:
     void catchException();
     void roundTrip();
     void pythonCompat();
+    void describe();
 
 private:
     cbor_variant i { 1 };

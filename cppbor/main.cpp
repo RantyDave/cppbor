@@ -29,7 +29,7 @@ void CborTest::testGet()
     CPPUNIT_ASSERT_EQUAL(get<int>(this->i), 1);
     CPPUNIT_ASSERT_EQUAL(get<float>(this->f), static_cast<float>(1.1));
     CPPUNIT_ASSERT_EQUAL(get<string>(this->s), string("Hello World!"));
-    CPPUNIT_ASSERT_EQUAL(get<vector<cbor_byte>>(this->b)[0], static_cast<cbor_byte>('b'));
+    CPPUNIT_ASSERT_EQUAL(get<vector<uint8_t>>(this->b)[0], static_cast<uint8_t>('b'));
     CPPUNIT_ASSERT_EQUAL(get<cbor_array>(this->a)[0], cbor_variant { 1 });
     CPPUNIT_ASSERT_EQUAL(get<cbor_map>(this->m)["Aye"], cbor_variant { 1 });
 }
@@ -76,7 +76,7 @@ void CborTest::roundTrip()
     this->scratchpad.clear();
     this->b.encode_onto(&this->scratchpad);
     auto d_b=cbor_variant::construct_from(this->scratchpad);
-    for (unsigned int i=0; i < get<vector<cbor_byte>>(this->b).size(); i++) {
+    for (unsigned int i=0; i < get<vector<uint8_t>>(this->b).size(); i++) {
         CPPUNIT_ASSERT_EQUAL(this->b[i], d_b[i]);
     }
 
@@ -108,7 +108,7 @@ void CborTest::roundTrip()
 void CborTest::pythonCompat()
 {
     const int buffer_length=32;
-    vector<cbor_byte> working(buffer_length);
+    vector<uint8_t> working(buffer_length);
 
     // Integers
     ifstream int_enc("int", ios::in|ios::binary);
@@ -132,9 +132,9 @@ void CborTest::pythonCompat()
     ifstream bytes_enc("bytes", ios::in|ios::binary);
     bytes_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto bytes_decoded=cbor_variant::construct_from(working);
-    vector<cbor_byte> ideal { 'b', 'y', 't', 'e', 's' };
-    for (unsigned int i=0; i < get<vector<cbor_byte>>(this->b).size(); i++) {
-        CPPUNIT_ASSERT_EQUAL(get<vector<cbor_byte>>(bytes_decoded)[i], ideal[i]);
+    vector<uint8_t> ideal { 'b', 'y', 't', 'e', 's' };
+    for (unsigned int i=0; i < get<vector<uint8_t>>(this->b).size(); i++) {
+        CPPUNIT_ASSERT_EQUAL(get<vector<uint8_t>>(bytes_decoded)[i], ideal[i]);
     }
 
     // None
@@ -143,12 +143,35 @@ void CborTest::pythonCompat()
     auto none_decoded=cbor_variant::construct_from(working);
     get<monostate>(none_decoded);
 
+    // Arrays
     ifstream array_enc("array", ios::in|ios::binary);
     array_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
     auto array_decoded=cbor_variant::construct_from(working);
     CPPUNIT_ASSERT_EQUAL(get<int>(get<cbor_array>(array_decoded)[0]), 8);
     CPPUNIT_ASSERT_EQUAL(get<float>(get<cbor_array>(array_decoded)[1]), static_cast<float>(1.1));
     CPPUNIT_ASSERT_EQUAL(get<string>(get<cbor_array>(array_decoded)[2]), string("pie"));
+
+    // Maps
+    ifstream map_enc("map", ios::in|ios::binary);
+    map_enc.read(reinterpret_cast<char*>(working.data()), buffer_length);
+    auto map_decoded=cbor_variant::construct_from(working);
+    CPPUNIT_ASSERT_EQUAL(get<int>(get<cbor_map>(map_decoded)["one"]), 1);
+    CPPUNIT_ASSERT_EQUAL(get<string>(get<cbor_map>(map_decoded)["two"]), string("deux"));
+}
+
+void CborTest::describe()
+{
+    cbor_variant empty_array { cbor_array { } };
+    cbor_variant empty_map { cbor_map { } };
+    CPPUNIT_ASSERT_EQUAL(i.describe(), string("1"));
+    CPPUNIT_ASSERT_EQUAL(f.describe(), string("1.100000"));
+    CPPUNIT_ASSERT_EQUAL(s.describe(), string("\"Hello World!\""));
+    CPPUNIT_ASSERT_EQUAL(n.describe(), string("None"));
+    CPPUNIT_ASSERT_EQUAL(b.describe(), string("[ 5 bytes ]"));
+    CPPUNIT_ASSERT_EQUAL(a.describe(), string("[1, 1.100000, \"Hello World!\"]"));
+    CPPUNIT_ASSERT_EQUAL(m.describe(), string("{\"Eh\": [1, 1.100000, \"Hello World!\"], \"Eff\": 1.100000, \"Aye\": 1}"));
+    CPPUNIT_ASSERT_EQUAL(empty_array.describe(), string("[]"));
+    CPPUNIT_ASSERT_EQUAL(empty_map.describe(), string("{}"));
 }
 
 int main(int argc, char* argv[])

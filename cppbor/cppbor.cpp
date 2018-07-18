@@ -108,7 +108,7 @@ void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
     // https://tools.ietf.org/html/rfc7049#section-2.1
     switch (index()) {
         case integer: { // integers
-            int val=get<0>(*this);
+            int val=get<integer>(*this);
             if (val>=0) append_integer_header(0, static_cast<unsigned int>(val), in);
             else append_integer_header(1, static_cast<unsigned int>((-val)-1), in);
             return;
@@ -118,7 +118,7 @@ void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
         case floating_point: { // floats
             header h(7, 26);
             h.append_onto(in);
-            float val=get<1>(*this);
+            float val=get<floating_point>(*this);
             float big_endian;
             uint8_t* p_big_endian=reinterpret_cast<uint8_t*>(&big_endian);
             float_to_big_endian(reinterpret_cast<uint8_t*>(&val), p_big_endian, sizeof(float));
@@ -127,28 +127,28 @@ void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
         }
 
         case bytes: { // bytes
-            const vector<uint8_t> val=get<4>(*this);
+            const vector<uint8_t> val=get<bytes>(*this);
             append_integer_header(2, static_cast<unsigned int>(val.size()), in);
             in->insert(in->end(), val.begin(), val.end());
             return;
         }
 
         case unicode_string: {  // string
-            const string val=get<2>(*this);
+            const string val=get<unicode_string>(*this);
             append_integer_header(3, static_cast<unsigned int>(val.size()), in);
             in->insert(in->end(), val.begin(), val.end());
             return;
         }
 
         case array: {  // variant array
-            const cbor_array val { get<5>(*this) };
+            const cbor_array val { get<array>(*this) };
             append_integer_header(4, static_cast<unsigned int>(val.size()), in);
             for (auto& v : val) v.encode_onto(in);
             return;
         }
 
         case map: {  // string -> variant map
-            const cbor_map val { get<6>(*this) };
+            const cbor_map val { get<map>(*this) };
             append_integer_header(5, static_cast<unsigned int>(val.size()), in);
             for (auto& v : val) {
                 // write the string key
@@ -164,6 +164,29 @@ void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
             in->push_back(0xf6);
         }
     }
+}
+
+string cbor_variant::describe()
+{
+    switch (index()) {
+        case integer: return to_string(get<integer>(*this));
+        case floating_point: return to_string(get<floating_point>(*this));
+        case bytes: return "[ "+to_string(get<bytes>(*this).size())+" bytes ]";
+        case unicode_string: return "\""+get<unicode_string>(*this)+"\"";
+        case array: {
+            string rtn { "[" };
+            for (auto& v : get<array>(*this)) rtn+=v.describe()+", ";
+            if (rtn.size()!=1) rtn.erase(rtn.size()-2);
+            return rtn+"]";
+        }
+        case map: {
+            string rtn { "{" };
+            for (auto& v : get<map>(*this)) rtn+="\""+v.first+"\": "+v.second.describe()+", ";
+            if (rtn.size()!=1) rtn.erase(rtn.size()-2);
+            return rtn+"}";
+        }
+    }
+    return "None";
 }
 
 unsigned int cbor_variant::integer_length(int additional)
