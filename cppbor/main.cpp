@@ -167,7 +167,7 @@ void CborTest::describe()
     CPPUNIT_ASSERT_EQUAL(f.as_python(), string("1.100000"));
     CPPUNIT_ASSERT_EQUAL(s.as_python(), string("\"Hello World!\""));
     CPPUNIT_ASSERT_EQUAL(n.as_python(), string("None"));
-    CPPUNIT_ASSERT_EQUAL(b.as_python(), string("[ 5 bytes ]"));
+    CPPUNIT_ASSERT_EQUAL(b.as_python(), string("bytes([0x62, 0x79, 0x74, 0x65, 0x73])"));
     CPPUNIT_ASSERT_EQUAL(a.as_python(), string("[1, 1.100000, \"Hello World!\"]"));
     CPPUNIT_ASSERT_EQUAL(m.as_python(), string("{\"Eh\": [1, 1.100000, \"Hello World!\"], \"Eff\": 1.100000, \"Aye\": 1}"));
     CPPUNIT_ASSERT_EQUAL(empty_array.as_python(), string("[]"));
