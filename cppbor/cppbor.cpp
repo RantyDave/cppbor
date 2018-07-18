@@ -14,6 +14,7 @@
 #include "cppbor.hpp"
 #include <exception>
 #include <string>
+#include <sstream>
 #include <arpa/inet.h>
 
 using namespace std;
@@ -166,22 +167,29 @@ void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
     }
 }
 
-string cbor_variant::describe()
+string cbor_variant::as_python()
 {
     switch (index()) {
         case integer: return to_string(get<integer>(*this));
         case floating_point: return to_string(get<floating_point>(*this));
-        case bytes: return "[ "+to_string(get<bytes>(*this).size())+" bytes ]";
         case unicode_string: return "\""+get<unicode_string>(*this)+"\"";
+        case bytes: {
+            stringstream stream;
+            stream << "bytes([";
+            for (auto& v : get<bytes>(*this)) stream << "0x" << hex << static_cast<int>(v) << ", ";
+            string rtn(stream.str());
+            if (rtn.size()!=7) rtn.erase(rtn.size()-2);
+            return rtn+"])";
+        }
         case array: {
             string rtn { "[" };
-            for (auto& v : get<array>(*this)) rtn+=v.describe()+", ";
+            for (auto& v : get<array>(*this)) rtn+=v.as_python()+", ";
             if (rtn.size()!=1) rtn.erase(rtn.size()-2);
             return rtn+"]";
         }
         case map: {
             string rtn { "{" };
-            for (auto& v : get<map>(*this)) rtn+="\""+v.first+"\": "+v.second.describe()+", ";
+            for (auto& v : get<map>(*this)) rtn+="\""+v.first+"\": "+v.second.as_python()+", ";
             if (rtn.size()!=1) rtn.erase(rtn.size()-2);
             return rtn+"}";
         }

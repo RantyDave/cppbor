@@ -163,15 +163,15 @@ void CborTest::describe()
 {
     cbor_variant empty_array { cbor_array { } };
     cbor_variant empty_map { cbor_map { } };
-    CPPUNIT_ASSERT_EQUAL(i.describe(), string("1"));
-    CPPUNIT_ASSERT_EQUAL(f.describe(), string("1.100000"));
-    CPPUNIT_ASSERT_EQUAL(s.describe(), string("\"Hello World!\""));
-    CPPUNIT_ASSERT_EQUAL(n.describe(), string("None"));
-    CPPUNIT_ASSERT_EQUAL(b.describe(), string("[ 5 bytes ]"));
-    CPPUNIT_ASSERT_EQUAL(a.describe(), string("[1, 1.100000, \"Hello World!\"]"));
-    CPPUNIT_ASSERT_EQUAL(m.describe(), string("{\"Eh\": [1, 1.100000, \"Hello World!\"], \"Eff\": 1.100000, \"Aye\": 1}"));
-    CPPUNIT_ASSERT_EQUAL(empty_array.describe(), string("[]"));
-    CPPUNIT_ASSERT_EQUAL(empty_map.describe(), string("{}"));
+    CPPUNIT_ASSERT_EQUAL(i.as_python(), string("1"));
+    CPPUNIT_ASSERT_EQUAL(f.as_python(), string("1.100000"));
+    CPPUNIT_ASSERT_EQUAL(s.as_python(), string("\"Hello World!\""));
+    CPPUNIT_ASSERT_EQUAL(n.as_python(), string("None"));
+    CPPUNIT_ASSERT_EQUAL(b.as_python(), string("[ 5 bytes ]"));
+    CPPUNIT_ASSERT_EQUAL(a.as_python(), string("[1, 1.100000, \"Hello World!\"]"));
+    CPPUNIT_ASSERT_EQUAL(m.as_python(), string("{\"Eh\": [1, 1.100000, \"Hello World!\"], \"Eff\": 1.100000, \"Aye\": 1}"));
+    CPPUNIT_ASSERT_EQUAL(empty_array.as_python(), string("[]"));
+    CPPUNIT_ASSERT_EQUAL(empty_map.as_python(), string("{}"));
 }
 
 int main(int argc, char* argv[])

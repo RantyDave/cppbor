@@ -22,4 +22,5 @@ with open("map", 'wb') as m:
     m.write(cbor.dumps({"one": 1, "two": "deux"}))
 
 with open("array-map", 'wb') as m:
-    m.write(cbor.dumps([{"one": 1, "two": "deux"}, {"three": 3, "four": "quatre"}]))
+    m.write(cbor.dumps([{"one": 1, "two": "deux", "nowt": None, "data": b'01234'},
+                        {"three": 3, "four-something": 4.3, "lots": [1, 2, 3]}]))

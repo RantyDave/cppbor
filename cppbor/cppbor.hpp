@@ -36,8 +36,8 @@ struct cbor_variant : std::variant<int, float, std::string, std::monostate, std:
     // encode this variant onto the end of the passed vector
     void encode_onto(std::vector<uint8_t>* in) const;
 
-    // describe this variant
-    std::string describe();
+    // describe this variant using a Python compatible format
+    std::string as_python();
 
     // call index() to return type
     enum types { integer, floating_point, unicode_string, none, bytes, array, map };
