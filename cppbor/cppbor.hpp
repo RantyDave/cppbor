@@ -30,20 +30,23 @@ typedef std::unordered_map<std::string, cbor_variant> cbor_map;
 struct cbor_variant : std::variant<int, float, std::string, std::monostate, std::vector<uint8_t>, cbor_array, cbor_map>
 {
     // construct a variant from a vector of bytes
-    static cbor_variant construct_from(const std::vector<uint8_t>& in);
-    static cbor_variant construct_from(const std::vector<uint8_t>& in, unsigned int* offset);
+    static void construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest);
+    static void construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest, unsigned int* offset);
 
     // encode this variant onto the end of the passed vector
     void encode_onto(std::vector<uint8_t>* in) const;
 
     // describe this variant using a Python compatible format
-    std::string as_python();
+    std::string as_python() const;
 
     // call index() to return type
     enum types { integer, floating_point, unicode_string, none, bytes, array, map };
 
+    // just because this is such a PITA
+    static void read_file_into(const char* name, std::vector<uint8_t>* dest);
+
     // stops cppunit from objecting
-    operator const char*() const { return "";}
+    operator const char*() const {return "";}
 
 private:
     // https://tools.ietf.org/html/rfc7049#section-2

@@ -12,19 +12,20 @@
 //OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 #include "cppbor.hpp"
+#include <cstdio>
 #include <exception>
 #include <string>
 #include <sstream>
 #include <arpa/inet.h>
 
 using namespace std;
-cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in)
+void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest)
 {
     unsigned int dummy_offset=0;
-    return construct_from(in, &dummy_offset);
+    return construct_from_into(in, dest, &dummy_offset);
 }
 
-cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in, unsigned int* offset)
+void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest, unsigned int* offset)
 {
     // nothing to read?
     if (in.size()<=*offset) throw length_error("No header byte while decoding cbor");
@@ -34,8 +35,15 @@ cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in, unsign
 
     // integers
     switch (h->major) {
-        case 0: return cbor_variant { read_integer_header(in, h, offset) };  // +ve integer
-        case 1: return cbor_variant { -1-read_integer_header(in, h, offset) };  // -ve integer
+        case 0: {
+            dest->emplace<integer>(read_integer_header(in, h, offset));  // +ve integer
+            return;
+        }
+
+        case 1: {
+            dest->emplace<integer>(-1-read_integer_header(in, h, offset));  // -ve integer
+            return;
+        }
 
         case 2: // bytes and strings
         case 3: {
@@ -44,19 +52,27 @@ cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in, unsign
             unsigned int offset_at_begin=*offset;
             *offset+=static_cast<unsigned int>(length);
             if (in.size()<*offset) throw length_error("Insufficient data bytes while decoding cbor");
-            if (h->major==2) return cbor_variant { vector<uint8_t>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
-            else return cbor_variant { string(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
+            if (h->major==2)
+                dest->emplace<bytes>(vector<uint8_t>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]));
+            else
+                dest->emplace<unicode_string>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]);
+            return;
         }
 
         case 4: {  // arrays
-            cbor_array rtn;
-            for (int pending_items=read_integer_header(in, h, offset); pending_items>0; pending_items--)
-                rtn.push_back(construct_from(in, offset));
-            return cbor_variant { rtn };
+            int total_items=read_integer_header(in, h, offset);
+            dest->emplace<array>(static_cast<unsigned>(total_items), cbor_variant());
+            cbor_array* current_array=&get<array>(*dest);
+            for (unsigned int this_item=0; this_item<static_cast<unsigned>(total_items); this_item++) {
+                cbor_variant* value_dest=&current_array->at(this_item);
+                construct_from_into(in, value_dest, offset);
+            }
+            return;
         }
 
         case 5: {  // maps
-            cbor_map rtn;
+            dest->emplace<map>();
+            cbor_map* current_map=&get<map>(*dest);
             for (int pending_items=read_integer_header(in, h, offset); pending_items>0; pending_items--) {
                 // get the key
                 h=reinterpret_cast<const header*>(&in[*offset]);
@@ -65,16 +81,18 @@ cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in, unsign
                 if (key_length<0) throw runtime_error("Length of a (map) key was expressed as a negative number");
                 string key { string(&in[*offset], &in[*offset+static_cast<unsigned int>(key_length)]) };
                 *offset+=static_cast<unsigned int>(key_length);
-                // get the variant
-                rtn[key]=construct_from(in, offset);
+
+                // create the variant
+                current_map->emplace(key, cbor_variant());
+                cbor_variant* value_dest=&current_map->at(key);
+                construct_from_into(in, value_dest, offset);
             }
-            return cbor_variant { rtn };
+            return;
         }
 
         case 6: {  // tags (are ignored)
             read_integer_header(in, h, offset);
-            // but we return the actual object that the tag referred to
-            return construct_from(in, offset);
+            return;
         }
 
         case 7: {  // floats and none
@@ -83,17 +101,20 @@ cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in, unsign
                 *offset+=5;
                 float rtn;
                 float_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn), 4);
-                return cbor_variant { rtn };
+                dest->emplace<floating_point>(rtn);
+                return;
             }
             if (h->additional==27) {  // double precision, gets cast down to single
                 *offset+=9;
                 double rtn;
                 float_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn), 8);
-                return cbor_variant { static_cast<float>(rtn) };
+                dest->emplace<floating_point>(static_cast<float>(rtn));
+                return;
             }
             if (h->additional==22) {
                 *offset+=1;
-                return cbor_variant { monostate() };
+                dest->emplace<none>();
+                return;
             }
             throw runtime_error("Asked to process a major type 7 that is neither a float nor a double");
         }
@@ -167,7 +188,7 @@ void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
     }
 }
 
-string cbor_variant::as_python()
+string cbor_variant::as_python() const
 {
     switch (index()) {
         case integer: return to_string(get<integer>(*this));
@@ -195,6 +216,22 @@ string cbor_variant::as_python()
         }
     }
     return "None";
+}
+
+void cbor_variant::read_file_into(const char* name, vector<uint8_t>* dest)
+{
+    // open file, find it's size
+    FILE* f=fopen(name, "r");
+    if (f==nullptr)
+        throw runtime_error(name);
+    fseek(f , 0 , SEEK_END);
+    size_t size=static_cast<size_t>(ftell(f));
+    rewind(f);
+
+    // create and load into buffer
+    dest->resize(size);
+    fread(dest->data(), size, 1, f);
+    fclose(f);
 }
 
 unsigned int cbor_variant::integer_length(int additional)

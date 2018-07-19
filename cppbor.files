@@ -1,3 +1,6 @@
+bench.cpp
+bench.py
+cppbor/sources.py
 cppbor/main.h
 CMakeLists.txt
 cppbor/cppbor.cpp
