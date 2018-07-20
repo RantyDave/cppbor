@@ -218,7 +218,7 @@ string cbor_variant::as_python() const
     return "None";
 }
 
-void cbor_variant::read_file_into(const char* name, vector<uint8_t>* dest)
+size_t cbor_variant::read_file_into(const char* name, vector<uint8_t>* dest)
 {
     // open file, find it's size
     FILE* f=fopen(name, "r");
@@ -232,6 +232,7 @@ void cbor_variant::read_file_into(const char* name, vector<uint8_t>* dest)
     dest->resize(size);
     fread(dest->data(), size, 1, f);
     fclose(f);
+    return size;
 }
 
 unsigned int cbor_variant::integer_length(int additional)

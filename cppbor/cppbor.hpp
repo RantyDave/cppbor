@@ -42,8 +42,8 @@ struct cbor_variant : std::variant<int, float, std::string, std::monostate, std:
     // call index() to return type
     enum types { integer, floating_point, unicode_string, none, bytes, array, map };
 
-    // just because this is such a PITA
-    static void read_file_into(const char* name, std::vector<uint8_t>* dest);
+    // just because this is such a PITA (returns size)
+    static size_t read_file_into(const char* name, std::vector<uint8_t>* dest);
 
     // stops cppunit from objecting
     operator const char*() const {return "";}
