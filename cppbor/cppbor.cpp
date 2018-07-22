@@ -19,13 +19,13 @@
 #include <arpa/inet.h>
 
 using namespace std;
-void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest)
+cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in)
 {
     unsigned int dummy_offset=0;
-    return construct_from_into(in, dest, &dummy_offset);
+    return construct_from(in, &dummy_offset);
 }
 
-void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest, unsigned int* offset)
+cbor_variant cbor_variant::construct_from(const std::vector<uint8_t>& in, unsigned int* offset)
 {
     // nothing to read?
     if (in.size()<=*offset) throw length_error("No header byte while decoding cbor");
@@ -35,16 +35,8 @@ void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_vari
 
     // integers
     switch (h->major) {
-        case 0: {
-            dest->emplace<integer>(read_integer_header(in, h, offset));  // +ve integer
-            return;
-        }
-
-        case 1: {
-            dest->emplace<integer>(-1-read_integer_header(in, h, offset));  // -ve integer
-            return;
-        }
-
+        case 0: return cbor_variant { read_integer_header(in, h, offset) };
+        case 1: return cbor_variant { -1-read_integer_header(in, h, offset) };
         case 2: // bytes and strings
         case 3: {
             int length=read_integer_header(in, h, offset);
@@ -53,26 +45,22 @@ void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_vari
             *offset+=static_cast<unsigned int>(length);
             if (in.size()<*offset) throw length_error("Insufficient data bytes while decoding cbor");
             if (h->major==2)
-                dest->emplace<bytes>(vector<uint8_t>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]));
+                return cbor_variant { vector<uint8_t>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
             else
-                dest->emplace<unicode_string>(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]);
-            return;
+                return cbor_variant { string(&in[offset_at_begin], &in[offset_at_begin+static_cast<unsigned int>(length)]) };
         }
 
         case 4: {  // arrays
             int total_items=read_integer_header(in, h, offset);
-            dest->emplace<array>(static_cast<unsigned>(total_items), cbor_variant());
-            cbor_array* current_array=&get<array>(*dest);
+            cbor_variant rtn=cbor_variant { cbor_array(static_cast<unsigned>(total_items), cbor_variant()) };
             for (unsigned int this_item=0; this_item<static_cast<unsigned>(total_items); this_item++) {
-                cbor_variant* value_dest=&current_array->at(this_item);
-                construct_from_into(in, value_dest, offset);
+                get<cbor_array>(rtn)[this_item]=construct_from(in, offset);
             }
-            return;
+            return rtn;
         }
 
         case 5: {  // maps
-            dest->emplace<map>();
-            cbor_map* current_map=&get<map>(*dest);
+            cbor_variant rtn=cbor_variant { cbor_map() };
             for (int pending_items=read_integer_header(in, h, offset); pending_items>0; pending_items--) {
                 // get the key
                 h=reinterpret_cast<const header*>(&in[*offset]);
@@ -83,16 +71,14 @@ void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_vari
                 *offset+=static_cast<unsigned int>(key_length);
 
                 // create the variant
-                current_map->emplace(key, cbor_variant());
-                cbor_variant* value_dest=&current_map->at(key);
-                construct_from_into(in, value_dest, offset);
+                get<cbor_map>(rtn)[key]=construct_from(in, offset);
             }
-            return;
+            return rtn;
         }
 
         case 6: {  // tags (are ignored)
-            read_integer_header(in, h, offset);
-            return;
+            read_integer_header(in, h, offset); // skip
+            return construct_from(in, offset);
         }
 
         case 7: {  // floats and none
@@ -100,21 +86,18 @@ void cbor_variant::construct_from_into(const std::vector<uint8_t>& in, cbor_vari
             if (h->additional==26) {  // single precision
                 *offset+=5;
                 float rtn;
-                float_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn), 4);
-                dest->emplace<floating_point>(rtn);
-                return;
+                float_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn));
+                return cbor_variant { rtn };
             }
-            if (h->additional==27) {  // double precision, gets cast down to single
+            if (h->additional==27) {  // double precision
                 *offset+=9;
                 double rtn;
-                float_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn), 8);
-                dest->emplace<floating_point>(static_cast<float>(rtn));
-                return;
+                double_to_big_endian(first_data_byte, reinterpret_cast<uint8_t*>(&rtn));
+                return cbor_variant { rtn };
             }
             if (h->additional==22) {
                 *offset+=1;
-                dest->emplace<none>();
-                return;
+                return cbor_variant { monostate() };
             }
             throw runtime_error("Asked to process a major type 7 that is neither a float nor a double");
         }
@@ -138,13 +121,13 @@ void cbor_variant::encode_onto(std::vector<uint8_t>* in) const
 
         // https://tools.ietf.org/html/rfc7049#section-2.3
         case floating_point: { // floats
-            header h(7, 26);
+            header h(7, 27);
             h.append_onto(in);
-            float val=get<floating_point>(*this);
-            float big_endian;
+            double val=get<floating_point>(*this);
+            double big_endian;
             uint8_t* p_big_endian=reinterpret_cast<uint8_t*>(&big_endian);
-            float_to_big_endian(reinterpret_cast<uint8_t*>(&val), p_big_endian, sizeof(float));
-            in->insert(in->end(), p_big_endian, p_big_endian+sizeof(float));
+            double_to_big_endian(reinterpret_cast<uint8_t*>(&val), p_big_endian);
+            in->insert(in->end(), p_big_endian, p_big_endian+sizeof(double));
             return;
         }
 
@@ -268,23 +251,40 @@ int cbor_variant::read_integer_header(const std::vector<uint8_t>& in, const head
     }
 }
 
-void cbor_variant::float_to_big_endian(const uint8_t* p_src, uint8_t* p_dest, unsigned int bytes)
+void cbor_variant::float_to_big_endian(const uint8_t* p_src, uint8_t* p_dest)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    p_dest+=bytes-1;
-    while (bytes>0) {
-        *p_dest=*p_src;
-        ++p_src;
-        --p_dest;
-        --bytes;
-    }
+    *p_dest++=p_src[3];
+    *p_dest++=p_src[2];
+    *p_dest++=p_src[1];
+    *p_dest  =p_src[0];
 #else
-    while (bytes>0) {
-        *p_dest=*p_src;
-        ++p_src;
-        ++p_dest;
-        --bytes;
-    }
-}
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest  =*p_src;
+#endif
+};
+
+void cbor_variant::double_to_big_endian(const uint8_t* p_src, uint8_t* p_dest)
+{
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    *p_dest++=p_src[7];
+    *p_dest++=p_src[6];
+    *p_dest++=p_src[5];
+    *p_dest++=p_src[4];
+    *p_dest++=p_src[3];
+    *p_dest++=p_src[2];
+    *p_dest++=p_src[1];
+    *p_dest  =p_src[0];
+#else
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest++=*p_src++;
+    *p_dest  =*p_src;
 #endif
 };

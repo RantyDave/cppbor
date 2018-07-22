@@ -27,7 +27,7 @@ CPPUNIT_TEST_SUITE_REGISTRATION( CborTest );
 void CborTest::testGet()
 {
     CPPUNIT_ASSERT_EQUAL(get<int>(this->i), 1);
-    CPPUNIT_ASSERT_EQUAL(get<float>(this->f), static_cast<float>(1.1));
+    CPPUNIT_ASSERT_EQUAL(get<double>(this->f), 1.1);
     CPPUNIT_ASSERT_EQUAL(get<string>(this->s), string("Hello World!"));
     CPPUNIT_ASSERT_EQUAL(get<vector<uint8_t>>(this->b)[0], static_cast<uint8_t>('b'));
     CPPUNIT_ASSERT_EQUAL(get<cbor_array>(this->a)[0], cbor_variant { 1 });
@@ -36,7 +36,7 @@ void CborTest::testGet()
 
 void CborTest::testNested()
 {
-    CPPUNIT_ASSERT_EQUAL(get<float>(get<cbor_array>(get<cbor_map>(this->m)["Eh"])[1]), static_cast<float>(1.1));
+    CPPUNIT_ASSERT_EQUAL(get<double>(get<cbor_array>(get<cbor_map>(this->m)["Eh"])[1]), static_cast<double>(1.1));
 }
 
 void CborTest::testType()
@@ -62,23 +62,20 @@ void CborTest::roundTrip()
         cbor_variant i { j };
         this->scratchpad.clear();
         i.encode_onto(&this->scratchpad);
-        cbor_variant dest_int;
-        cbor_variant::construct_from_into(scratchpad, &dest_int);
+        cbor_variant dest_int=cbor_variant::construct_from(this->scratchpad);
         CPPUNIT_ASSERT_EQUAL(get<int>(dest_int), j);
     }
 
     // Floats
     this->scratchpad.clear();
     this->f.encode_onto(&this->scratchpad);
-    cbor_variant dest_float;
-    cbor_variant::construct_from_into(this->scratchpad, &dest_float);
-    CPPUNIT_ASSERT_EQUAL(get<float>(this->f), get<float>(dest_float));
+    cbor_variant dest_float=cbor_variant::construct_from(this->scratchpad);
+    CPPUNIT_ASSERT_EQUAL(get<double>(this->f), get<double>(dest_float));
 
     // Bytes
     this->scratchpad.clear();
     this->b.encode_onto(&this->scratchpad);
-    cbor_variant dest_bytes;
-    cbor_variant::construct_from_into(this->scratchpad, &dest_bytes);
+    cbor_variant dest_bytes=cbor_variant::construct_from(this->scratchpad);
     for (unsigned int i=0; i < get<vector<uint8_t>>(this->b).size(); i++) {
         CPPUNIT_ASSERT_EQUAL(this->b[i], dest_bytes[i]);
     }
@@ -86,26 +83,23 @@ void CborTest::roundTrip()
     // Strings
     this->scratchpad.clear();
     this->s.encode_onto(&this->scratchpad);
-    cbor_variant dest_string;
-    cbor_variant::construct_from_into(this->scratchpad, &dest_string);
+    cbor_variant dest_string=cbor_variant::construct_from(this->scratchpad);
     CPPUNIT_ASSERT_EQUAL(get<string>(this->s), get<string>(dest_string));
 
     // Arrays
     this->scratchpad.clear();
     this->a.encode_onto(&this->scratchpad);
-    cbor_variant dest_array;
-    cbor_variant::construct_from_into(this->scratchpad, &dest_array);
+    cbor_variant dest_array=cbor_variant::construct_from(this->scratchpad);
     CPPUNIT_ASSERT_EQUAL(get<int>(get<cbor_array>(this->a)[0]), get<int>(get<cbor_array>(dest_array)[0]));
-    CPPUNIT_ASSERT_EQUAL(get<float>(get<cbor_array>(this->a)[1]), get<float>(get<cbor_array>(dest_array)[1]));
+    CPPUNIT_ASSERT_EQUAL(get<double>(get<cbor_array>(this->a)[1]), get<double>(get<cbor_array>(dest_array)[1]));
     CPPUNIT_ASSERT_EQUAL(get<string>(get<cbor_array>(this->a)[2]), get<string>(get<cbor_array>(dest_array)[2]));
 
     // Maps
     this->scratchpad.clear();
     this->m.encode_onto(&this->scratchpad);
-    cbor_variant dest_map;
-    cbor_variant::construct_from_into(this->scratchpad, &dest_map);
+    cbor_variant dest_map=cbor_variant::construct_from(this->scratchpad);
     auto the_map=get<cbor_map>(dest_map);
-    CPPUNIT_ASSERT_EQUAL(get<float>(the_map["Eff"]), get<float>(get<cbor_map>(this->m)["Eff"]));
+    CPPUNIT_ASSERT_EQUAL(get<double>(the_map["Eff"]), get<double>(get<cbor_map>(this->m)["Eff"]));
     CPPUNIT_ASSERT_EQUAL(get<int>(the_map["Aye"]), get<int>(get<cbor_map>(this->m)["Aye"]));
     auto the_array=get<cbor_array>(the_map["Eh"]);
     CPPUNIT_ASSERT_EQUAL(get<string>(the_array[2]), get<string>(get<cbor_array>(get<cbor_map>(this->m)["Eh"])[2]));
@@ -117,26 +111,22 @@ void CborTest::pythonCompat()
 
     // Integers
     cbor_variant::read_file_into("int", &working);
-    cbor_variant int_decoded;
-    cbor_variant::construct_from_into(working, &int_decoded);
+    cbor_variant int_decoded=cbor_variant::construct_from(working);
     CPPUNIT_ASSERT_EQUAL(get<int>(int_decoded), -12345678);
 
     // Floats
     cbor_variant::read_file_into("float", &working);
-    cbor_variant float_decoded;
-    cbor_variant::construct_from_into(working, &float_decoded);
-    CPPUNIT_ASSERT_EQUAL(get<float>(float_decoded), static_cast<float>(1.1));
+    cbor_variant float_decoded=cbor_variant::construct_from(working);
+    CPPUNIT_ASSERT_EQUAL(get<double>(float_decoded), static_cast<double>(1.1));
 
     // Strings
     cbor_variant::read_file_into("string", &working);
-    cbor_variant string_decoded;
-    cbor_variant::construct_from_into(working, &string_decoded);
+    cbor_variant string_decoded=cbor_variant::construct_from(working);
     CPPUNIT_ASSERT_EQUAL(get<string>(string_decoded), string("smeg"));
 
     // Bytes
     cbor_variant::read_file_into("bytes", &working);
-    cbor_variant bytes_decoded;
-    cbor_variant::construct_from_into(working, &bytes_decoded);
+    cbor_variant bytes_decoded=cbor_variant::construct_from(working);
     vector<uint8_t> ideal { 'b', 'y', 't', 'e', 's' };
     for (unsigned int i=0; i < get<vector<uint8_t>>(this->b).size(); i++) {
         CPPUNIT_ASSERT_EQUAL(get<vector<uint8_t>>(bytes_decoded)[i], ideal[i]);
@@ -144,22 +134,19 @@ void CborTest::pythonCompat()
 
     // None
     cbor_variant::read_file_into("none", &working);
-    cbor_variant none_decoded;
-    cbor_variant::construct_from_into(working, &none_decoded);
+    cbor_variant none_decoded=cbor_variant::construct_from(working);
     get<monostate>(none_decoded);
 
     // Arrays
     cbor_variant::read_file_into("array", &working);
-    cbor_variant array_decoded;
-    cbor_variant::construct_from_into(working, &array_decoded);
+    cbor_variant array_decoded=cbor_variant::construct_from(working);
     CPPUNIT_ASSERT_EQUAL(get<int>(get<cbor_array>(array_decoded)[0]), 8);
-    CPPUNIT_ASSERT_EQUAL(get<float>(get<cbor_array>(array_decoded)[1]), static_cast<float>(1.1));
+    CPPUNIT_ASSERT_EQUAL(get<double>(get<cbor_array>(array_decoded)[1]), static_cast<double>(1.1));
     CPPUNIT_ASSERT_EQUAL(get<string>(get<cbor_array>(array_decoded)[2]), string("pie"));
 
     // Maps
     cbor_variant::read_file_into("map", &working);
-    cbor_variant map_decoded;
-    cbor_variant::construct_from_into(working, &map_decoded);
+    cbor_variant map_decoded=cbor_variant::construct_from(working);
     CPPUNIT_ASSERT_EQUAL(get<int>(get<cbor_map>(map_decoded)["one"]), 1);
     CPPUNIT_ASSERT_EQUAL(get<string>(get<cbor_map>(map_decoded)["two"]), string("deux"));
 }
@@ -174,7 +161,7 @@ void CborTest::describe()
     CPPUNIT_ASSERT_EQUAL(n.as_python(), string("None"));
     CPPUNIT_ASSERT_EQUAL(b.as_python(), string("bytes([0x62, 0x79, 0x74, 0x65, 0x73])"));
     CPPUNIT_ASSERT_EQUAL(a.as_python(), string("[1, 1.100000, \"Hello World!\"]"));
-    CPPUNIT_ASSERT_EQUAL(m.as_python(), string("{\"Eh\": [1, 1.100000, \"Hello World!\"], \"Eff\": 1.100000, \"Aye\": 1}"));
+    CPPUNIT_ASSERT_EQUAL(m.as_python(), string("{\"Aye\": 1, \"Eff\": 1.100000, \"Eh\": [1, 1.100000, \"Hello World!\"]}"));
     CPPUNIT_ASSERT_EQUAL(empty_array.as_python(), string("[]"));
     CPPUNIT_ASSERT_EQUAL(empty_map.as_python(), string("{}"));
 }

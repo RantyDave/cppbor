@@ -2,3 +2,4 @@
 *.user
 cppbor/.gitattributes
 *.autosave
+cbor-python-wrote

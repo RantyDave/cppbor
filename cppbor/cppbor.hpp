@@ -19,19 +19,22 @@
 #include <variant>
 #include <string>
 #include <vector>
-#include <unordered_map>
+#include <map>
+#include <initializer_list>
+#include <iostream>
 
 struct cbor_variant;
 typedef std::vector<cbor_variant> cbor_array;
-typedef std::unordered_map<std::string, cbor_variant> cbor_map;
+typedef std::map<std::string, cbor_variant> cbor_map;
+typedef std::variant<int, double, std::string, std::monostate, std::vector<uint8_t>, cbor_array, cbor_map> cbor_baseclass;
 
 // Not supported: 64 bit ints, indefinite lengths
 // Map keys are assumed to be std::string
-struct cbor_variant : std::variant<int, float, std::string, std::monostate, std::vector<uint8_t>, cbor_array, cbor_map>
+struct cbor_variant : cbor_baseclass
 {
     // construct a variant from a vector of bytes
-    static void construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest);
-    static void construct_from_into(const std::vector<uint8_t>& in, cbor_variant* dest, unsigned int* offset);
+    static cbor_variant construct_from(const std::vector<uint8_t>& in);
+    static cbor_variant construct_from(const std::vector<uint8_t>& in, unsigned int* offset);
 
     // encode this variant onto the end of the passed vector
     void encode_onto(std::vector<uint8_t>* in) const;
@@ -81,7 +84,8 @@ private:
     static unsigned int integer_length(int additional);
     static void append_integer_header(unsigned int major, unsigned int val, std::vector<uint8_t>* in);
     static int read_integer_header(const std::vector<uint8_t>& in, const header* h, unsigned int* offset);
-    static void float_to_big_endian(const uint8_t* p_src, uint8_t* p_dest, unsigned int bytes);
+    static void float_to_big_endian(const uint8_t* p_src, uint8_t* p_dest);
+    static void double_to_big_endian(const uint8_t* p_src, uint8_t* p_dest);
 };
 
 #endif /* cppbor_hpp */

@@ -41,7 +41,7 @@ public:
 
 private:
     cbor_variant i { 1 };
-    cbor_variant f { static_cast<float>(1.1) };
+    cbor_variant f { 1.1 };
     cbor_variant s { std::string("Hello World!") };
     cbor_variant n { std::monostate() };  // 'None' in Python
     cbor_variant b { std::vector<uint8_t> { 'b', 'y', 't', 'e', 's' } };

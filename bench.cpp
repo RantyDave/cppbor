@@ -1,5 +1,6 @@
 #include <iostream>
 #include <chrono>
+#include <unistd.h>
 #include "cppbor/cppbor.hpp"
 
 using namespace std;
@@ -19,10 +20,11 @@ int main()
     fclose(f);
 
     // decode cbor
+    sleep(1);
     high_resolution_clock::time_point start=high_resolution_clock::now();
-    cbor_variant cbor_original;
-    cbor_variant::construct_from_into(cbor_data_in, &cbor_original);
+    cbor_variant cbor_original=cbor_variant::construct_from(cbor_data_in);
     high_resolution_clock::time_point end=high_resolution_clock::now();
+    sleep(1);
 
     // report
     duration<float> time_taken=duration_cast<duration<float>>(end-start);
