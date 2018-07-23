@@ -254,37 +254,37 @@ int cbor_variant::read_integer_header(const std::vector<uint8_t>& in, const head
 void cbor_variant::float_to_big_endian(const uint8_t* p_src, uint8_t* p_dest)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    *p_dest++=p_src[3];
-    *p_dest++=p_src[2];
-    *p_dest++=p_src[1];
-    *p_dest  =p_src[0];
+    p_dest[0]=p_src[3];
+    p_dest[1]=p_src[2];
+    p_dest[2]=p_src[1];
+    p_dest[3]=p_src[0];
 #else
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest  =*p_src;
+    p_dest[0]=p_src[0];
+    p_dest[1]=p_src[1];
+    p_dest[2]=p_src[2];
+    p_dest[3]=p_src[3];
 #endif
 };
 
 void cbor_variant::double_to_big_endian(const uint8_t* p_src, uint8_t* p_dest)
 {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    *p_dest++=p_src[7];
-    *p_dest++=p_src[6];
-    *p_dest++=p_src[5];
-    *p_dest++=p_src[4];
-    *p_dest++=p_src[3];
-    *p_dest++=p_src[2];
-    *p_dest++=p_src[1];
-    *p_dest  =p_src[0];
+    p_dest[0]=p_src[7];
+    p_dest[1]=p_src[6];
+    p_dest[2]=p_src[5];
+    p_dest[3]=p_src[4];
+    p_dest[4]=p_src[3];
+    p_dest[5]=p_src[2];
+    p_dest[6]=p_src[1];
+    p_dest[7]=p_src[0];
 #else
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest++=*p_src++;
-    *p_dest  =*p_src;
+    p_dest[0]=p_src[0];
+    p_dest[1]=p_src[1];
+    p_dest[2]=p_src[2];
+    p_dest[3]=p_src[3];
+    p_dest[4]=p_src[4];
+    p_dest[5]=p_src[5];
+    p_dest[6]=p_src[6];
+    p_dest[7]=p_src[7];
 #endif
 };
